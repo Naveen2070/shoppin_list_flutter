@@ -27,7 +27,7 @@ class _NewItemState extends State<NewItem> {
       final url = Uri.https(
           'grocery-list-flutter-50e9c-default-rtdb.firebaseio.com',
           'shopping-list.json');
-      final result = await http.post(url,
+      final response = await http.post(url,
           headers: {"Content-Type": "application/json"},
           body: json.encode(
             {
@@ -36,12 +36,10 @@ class _NewItemState extends State<NewItem> {
               "category": _enteredCategory.title,
             },
           ));
-      print(result);
-      // Navigator.of(context).pop(GroceryItem(
-      //     id: DateTime.now().toString(),
-      //     name: _enteredName,
-      //     quantity: _enteredquantity,
-      //     category: _enteredCategory));
+      if (!context.mounted) {
+        return;
+      }
+      Navigator.of(context).pop();
     }
   }
 
