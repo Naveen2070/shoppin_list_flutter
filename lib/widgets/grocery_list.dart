@@ -1,6 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shoppin_list/data/categories.dart';
 import 'package:shoppin_list/models/grocery_item.dart';
 import 'package:shoppin_list/widgets/new_item.dart';
+
+import 'package:http/http.dart' as http;
 
 class GroceryList extends StatefulWidget {
   const GroceryList({super.key});
@@ -10,7 +15,54 @@ class GroceryList extends StatefulWidget {
 }
 
 class _GroceryListState extends State<GroceryList> {
-  final List<GroceryItem> _groceryItems = [];
+  List<GroceryItem> _groceryItems = [];
+  var _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _getItems();
+  }
+
+  void _getItems() async {
+    final url = Uri.https(
+        'grocery-list-flutter-50e9c-default-rtdb.firebaseio.com',
+        'shopping-list.json');
+    final response = await http.get(url);
+    if (response.statusCode >= 400) {
+      setState(() {
+        _error = "Try again later";
+      });
+    }
+    if (response.body == 'null') {
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+    final Map<String, dynamic> listData = json.decode(response.body);
+    final List<GroceryItem> loadedItems = [];
+    for (final item in listData.entries) {
+      final category = categories.entries
+          .firstWhere(
+            (element) => element.value.title == item.value['category'],
+          )
+          .value;
+      loadedItems.add(
+        GroceryItem(
+            id: item.key,
+            name: item.value['name'],
+            quantity: item.value["quantity"],
+            category: category),
+      );
+    }
+    setState(() {
+      _groceryItems = loadedItems;
+      _isLoading = false;
+    });
+  }
+
   void _addItem() async {
     final newItem =
         await Navigator.of(context).push<GroceryItem>(MaterialPageRoute(
@@ -24,21 +76,44 @@ class _GroceryListState extends State<GroceryList> {
     });
   }
 
-  void _removeItem(GroceryItem item) {
+  void _removeItem(GroceryItem item) async {
     final index = _groceryItems.indexOf(item);
     setState(() {
       _groceryItems.remove(item);
     });
+    final url = Uri.https(
+        'grocery-list-flutter-50e9c-default-rtdb.firebaseio.com',
+        'shopping-list/${item.id}.json');
+    final res = await http.delete(url);
+    if (res.statusCode >= 400) {
+      setState(() {
+        setState(() {
+          _groceryItems.insert(index, item);
+        });
+      });
+    }
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: const Text("Item deleted"),
       duration: const Duration(seconds: 3),
       action: SnackBarAction(
           label: "Undo",
-          onPressed: () {
+          onPressed: () async {
             setState(() {
               _groceryItems.insert(index, item);
             });
+            final url = Uri.https(
+                'grocery-list-flutter-50e9c-default-rtdb.firebaseio.com',
+                'shopping-list.json');
+            final response = await http.post(url,
+                headers: {"Content-Type": "application/json"},
+                body: json.encode(
+                  {
+                    "name": item.name,
+                    "quantity": item.quantity,
+                    "category": item.category.title,
+                  },
+                ));
           }),
     ));
   }
@@ -48,6 +123,13 @@ class _GroceryListState extends State<GroceryList> {
     Widget content = const Center(
       child: Text("No items added yet."),
     );
+
+    if (_isLoading) {
+      content = const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
     if (_groceryItems.isNotEmpty) {
       content = ListView.builder(
         itemCount: _groceryItems.length,
@@ -92,6 +174,11 @@ class _GroceryListState extends State<GroceryList> {
             ),
           ),
         ),
+      );
+    }
+    if (_error != null) {
+      content = Center(
+        child: Text(_error!),
       );
     }
     return Scaffold(

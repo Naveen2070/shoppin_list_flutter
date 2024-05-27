@@ -20,10 +20,14 @@ class _NewItemState extends State<NewItem> {
   var _enteredName = "";
   var _enteredquantity = 1;
   var _enteredCategory = categories[Categories.vegetables]!;
+  var _isSending = false;
 
   void _saveItem() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
+      setState(() {
+        _isSending = true;
+      });
       final url = Uri.https(
           'grocery-list-flutter-50e9c-default-rtdb.firebaseio.com',
           'shopping-list.json');
@@ -36,10 +40,15 @@ class _NewItemState extends State<NewItem> {
               "category": _enteredCategory.title,
             },
           ));
+      final Map<String, dynamic> result = json.decode(response.body);
       if (!context.mounted) {
         return;
       }
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(GroceryItem(
+          id: result['name'],
+          name: _enteredName,
+          quantity: _enteredquantity,
+          category: _enteredCategory));
     }
   }
 
@@ -132,14 +141,22 @@ class _NewItemState extends State<NewItem> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () {
-                      _formKey.currentState!.reset();
-                    },
+                    onPressed: _isSending
+                        ? null
+                        : () {
+                            _formKey.currentState!.reset();
+                          },
                     child: const Text('Reset'),
                   ),
                   ElevatedButton(
-                    onPressed: _saveItem,
-                    child: const Text('Add Item'),
+                    onPressed: _isSending ? null : _saveItem,
+                    child: _isSending
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(),
+                          )
+                        : const Text('Add Item'),
                   )
                 ],
               ),
